@@ -1,7 +1,7 @@
 {
   "model_version": "energy_lstm_sim_v1",
-  "dataset_version": "8ad7d649402211a3",
-  "training_timestamp": "2026-10-07T09:32:37.352155+00:00",
+  "dataset_version": "02a2840dff82df25",
+  "training_timestamp": "2026-10-07T12:37:00.460937+00:00",
   "features": [
     "voltage",
     "current",
@@ -45,26 +45,26 @@
     "power_lag_3"
   ],
   "sequence_length": 60,
-  "sampling_interval_seconds": 1.0,
-  "sampling_interval_ms": 1000,
+  "sampling_interval_seconds": 5.0,
+  "sampling_interval_ms": 5000,
   "forecast_horizon_intervals": 1,
-  "forecast_horizon_seconds": 1.0,
+  "forecast_horizon_seconds": 5.0,
   "target": "energy_interval",
   "metrics": {
-    "mae": 2.104706070683831e-05,
-    "rmse": 5.2593575842647636e-05,
-    "r2": 0.24914810210494087,
-    "mape": 88.88567125188864,
-    "wape": 117.52098998749139,
+    "mae": 8.950964728816744e-05,
+    "rmse": 0.00027626337664199673,
+    "r2": 0.1642956736995742,
+    "mape": 98.25559764126132,
+    "wape": 124.3841454188073,
     "min_pred": 0.0,
-    "max_pred": 0.0001851409615483135,
+    "max_pred": 0.0007021916098892689,
     "negative_count": 0,
-    "test_samples": 892,
+    "test_samples": 318,
     "target": "energy_interval",
     "unit": "kWh"
   },
   "appliance_scope": "per-appliance sequence",
   "source": "simulation",
-  "epochs_completed": 9,
+  "epochs_completed": 7,
   "batch_size": 32
 }

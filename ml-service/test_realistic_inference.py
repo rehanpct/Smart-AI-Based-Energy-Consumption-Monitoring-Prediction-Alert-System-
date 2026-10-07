@@ -7,7 +7,7 @@ import sys
 def get_sequence():
     conn = sqlite3.connect('../backend/database.sqlite')
     query = """
-    SELECT timestamp, voltage, current, power, energy, frequency, power_factor
+    SELECT timestamp, voltage, current, power, energy, frequency, power_factor, interval_energy_kwh
     FROM telemetry
     WHERE pzem_id = 'PZEM-001'
     ORDER BY timestamp DESC

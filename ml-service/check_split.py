@@ -3,9 +3,9 @@ import pandas as pd
 from config import DATASETS_DIR
 from data_pipeline import prepare_datasets
 
-csv_path = os.path.join(DATASETS_DIR, 'synthetic_telemetry.csv')
+csv_path = os.path.join(DATASETS_DIR, 'canonical_simulation_telemetry.csv')
 df = pd.read_csv(csv_path)
-df['timestamp'] = pd.to_datetime(df['timestamp'])
+df['timestamp'] = pd.to_datetime(df['timestamp'], format='mixed', utc=True)
 df = df.sort_values(by=['appliance_id', 'timestamp'])
 
 print("Total samples:", len(df))

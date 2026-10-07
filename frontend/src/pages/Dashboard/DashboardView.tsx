@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useSensorStore } from '../../stores/sensorStore';
+import { useTelemetryStore } from '../../stores/telemetryStore';
 import { useDeviceStore } from '../../stores/deviceStore';
+import { useTelemetryStore } from '../../stores/telemetryStore';
 import { useAlertStore } from '../../stores/alertStore';
 import { socketService } from '../../services/socket';
 import api from '../../services/api';
@@ -25,7 +26,7 @@ import {
 } from 'lucide-react';
 
 export const DashboardView: React.FC = () => {
-  const { sensors, history, setSensors, updateSensors, setSocketConnected, setSensorHistory, addHistoryPoint } = useSensorStore();
+  const { latestReadings, history, socketConnected } = useTelemetryStore();
   const { setDevices } = useDeviceStore();
   const { addAlert } = useAlertStore();
 
@@ -36,18 +37,8 @@ export const DashboardView: React.FC = () => {
     // 1. Fetch initial states from REST API
     const fetchInitData = async () => {
       try {
-        const [devicesRes, sensorsRes] = await Promise.all([
-          api.get('/devices'),
-          api.get('/sensors')
-        ]);
+        const devicesRes = await api.get('/devices');
         setDevices(devicesRes.data);
-        setSensors(sensorsRes.data);
-
-        // Fetch history for each sensor
-        for (const sensor of sensorsRes.data) {
-          const historyRes = await api.get(`/sensors/${sensor.id}/history?limit=30`);
-          setSensorHistory(sensor.id, historyRes.data);
-        }
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
         toast.error('Rest API unavailable. Check backend server.');
@@ -59,26 +50,7 @@ export const DashboardView: React.FC = () => {
     // 2. Establish Socket Connection and subscribe to live telemetry
     socketService.connect();
 
-    const statusUnsub = socketService.onStatusChange((connected) => {
-      setSocketConnected(connected);
-    });
 
-    socketService.on('telemetry:init', (data: { sensors: any[], devices: any[] }) => {
-      setSensors(data.sensors);
-      setDevices(data.devices);
-    });
-
-    socketService.on('telemetry:update', (updatedSensors: any[]) => {
-      updateSensors(updatedSensors);
-      updatedSensors.forEach(sensor => {
-        addHistoryPoint(sensor.id, {
-          id: Math.random(),
-          sensorId: sensor.id,
-          value: sensor.value,
-          timestamp: new Date().toISOString()
-        });
-      });
-    });
 
     socketService.on('telemetry:alert', (newAlert: any) => {
       addAlert(newAlert);
@@ -86,73 +58,49 @@ export const DashboardView: React.FC = () => {
     });
 
     return () => {
-      statusUnsub();
-      socketService.off('telemetry:init', () => {});
-      socketService.off('telemetry:update', () => {});
       socketService.off('telemetry:alert', () => {});
       socketService.disconnect();
     };
   }, []);
 
-  // 1. Derive real-time values from PZEM and environmental sensors
-  const rawPower = useMemo(() => sensors.find(s => s.id === 'sns-001')?.value || 0, [sensors]); // kW
-  const powerW = useMemo(() => Math.round(rawPower * 1000), [rawPower]); // W
+    // Use real telemetry from latestReadings. Taking the first appliance's telemetry for the overall dashboard, or summing.
+  // We'll just display the first available or aggregate.
+  const appIds = Object.keys(latestReadings);
+  const primaryAppId = appIds.length > 0 ? appIds[0] : null;
+  const selectedTelemetry = primaryAppId ? latestReadings[primaryAppId] : null;
 
-  const frequency = useMemo(() => sensors.find(s => s.id === 'sns-002')?.value || 50.0, [sensors]);
-  const temp = useMemo(() => sensors.find(s => s.id === 'sns-003')?.value || 21.0, [sensors]);
-  const humidity = useMemo(() => sensors.find(s => s.id === 'sns-004')?.value || 45.0, [sensors]);
-  const solarPower = useMemo(() => sensors.find(s => s.id === 'sns-005')?.value || 0, [sensors]);
-  const solarEfficiency = useMemo(() => sensors.find(s => s.id === 'sns-006')?.value || 0, [sensors]);
+  const rawPower = selectedTelemetry?.power ? selectedTelemetry.power / 1000 : 0; // kW
+  const powerW = selectedTelemetry?.power ? Math.round(selectedTelemetry.power) : 0; // W
+  const voltage = selectedTelemetry?.voltage ? Number(selectedTelemetry.voltage.toFixed(1)) : 0;
+  const current = selectedTelemetry?.current ? Number(selectedTelemetry.current.toFixed(2)) : 0;
+  const frequency = selectedTelemetry?.frequency ? Number(selectedTelemetry.frequency.toFixed(1)) : 0;
+  const powerFactor = selectedTelemetry?.power_factor ? Number(selectedTelemetry.power_factor.toFixed(2)) : 0;
+  const energy = selectedTelemetry?.energy ? Number(selectedTelemetry.energy.toFixed(2)) : 0;
 
-  // Electrical parameter calculations based on power
-  const voltage = useMemo(() => {
-    // Fluctuates around 229.4V based on load
-    const baseline = 229.4;
-    const variance = (rawPower / 100) * (Math.random() - 0.5);
-    return parseFloat((baseline + variance).toFixed(1));
-  }, [rawPower]);
-
-  const current = useMemo(() => {
-    // Current (A) = Power (W) / Voltage (V)
-    if (powerW === 0) return 0;
-    return parseFloat((powerW / voltage).toFixed(2));
-  }, [powerW, voltage]);
-
-  const powerFactor = useMemo(() => {
-    // High load slightly reduces power factor
-    const baseline = 0.97;
-    const drag = (rawPower / 1000) * 0.05;
-    return parseFloat(Math.max(0.7, Math.min(1.0, baseline - drag)).toFixed(2));
-  }, [rawPower]);
-
+  // Environmental defaults since they aren't in telemetry (we just use 0 if not available)
+  const temp = 0;
+  const humidity = 0;
+  const solarPower = 0;
+  const solarEfficiency = 0;
 
   // Derived histories for 6 Recharts
   const derivedHistory = useMemo(() => {
-    const powerPoints = history['sns-001'] || [];
-    const freqPoints = history['sns-002'] || [];
+    if (!primaryAppId || !history[primaryAppId]) return [];
 
-    return powerPoints.map((p, index) => {
+    return history[primaryAppId].map((p, index) => {
       const timeStr = new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const pW = p.value * 1000;
-      const vVal = parseFloat((229.4 + (p.value / 100) * (Math.random() - 0.5)).toFixed(1));
-      const cVal = vVal === 0 ? 0 : parseFloat((pW / vVal).toFixed(2));
-      const pfVal = parseFloat(Math.max(0.7, Math.min(1.0, 0.97 - (p.value / 1000) * 0.05)).toFixed(2));
-      const fVal = freqPoints[index]?.value || 50.0;
-      const eToday = parseFloat((p.value * 0.05 + 7.2).toFixed(2)); // mock accumulating energy
-
       return {
         time: timeStr,
-        power: pW,
-        voltage: vVal,
-        current: cVal,
-        pf: pfVal,
-        frequency: fVal,
-        energy: eToday
+        power: p.power,
+        voltage: p.voltage,
+        current: p.current,
+        pf: p.power_factor,
+        frequency: p.frequency,
+        energy: p.energy
       };
     });
-  }, [history]);
+  }, [history, primaryAppId]);
 
-  // Dynamic greeting based on time of day
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning 👋';
@@ -234,7 +182,7 @@ export const DashboardView: React.FC = () => {
         <div className="glass-panel rounded-xl p-4 flex flex-col justify-between min-h-24">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Today's Energy</span>
           <div className="mt-3">
-            <span className="text-xl font-bold tracking-tight text-slate-100">{(rawPower * 0.05 + 7.82).toFixed(2)} kWh</span>
+            <span className="text-xl font-bold tracking-tight text-slate-100">{energy} kWh</span>
             <span className="text-[9px] text-slate-500 block mt-1">Accumulated</span>
           </div>
         </div>
@@ -253,7 +201,7 @@ export const DashboardView: React.FC = () => {
           <div className="absolute top-0 right-0 w-16 h-16 bg-violet-500/5 rounded-full blur-xl"></div>
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Predicted Bill</span>
           <div className="mt-3">
-            <span className="text-xl font-bold tracking-tight text-slate-100">₹{(rawPower * 0.15 * 24 * 30 + 1540).toFixed(0)}</span>
+            <span className="text-xl font-bold tracking-tight text-slate-100">₹{energy > 0 ? (energy * 8.5).toFixed(0) : "0"}</span>
             <span className="text-[9px] text-violet-400 block mt-1 font-semibold">LSTM Forecast</span>
           </div>
         </div>
@@ -466,7 +414,7 @@ export const DashboardView: React.FC = () => {
                 AI Operation Summary
               </div>
               <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                Today's electricity usage increased by <strong className="text-emerald-400">11%</strong>. Expected monthly bill totals <strong className="text-slate-100">₹{(rawPower * 0.15 * 24 * 30 + 1540).toFixed(0)}</strong>, with peak consumption loads occurring between <strong className="text-amber-400">6 PM – 9 PM</strong>.
+                Today's electricity usage increased by <strong className="text-emerald-400">11%</strong>. Expected monthly bill totals <strong className="text-slate-100">₹{energy > 0 ? (energy * 8.5).toFixed(0) : "0"}</strong>, with peak consumption loads occurring between <strong className="text-amber-400">6 PM – 9 PM</strong>.
               </p>
               <div className="flex gap-2.5 items-start text-[11px] text-slate-400 bg-slate-900/30 p-3 rounded-lg border border-slate-900/80">
                 <Lightbulb className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
@@ -505,7 +453,7 @@ export const DashboardView: React.FC = () => {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
             {[
-              { label: "Today's Usage", value: `${(rawPower * 0.05 + 7.82).toFixed(2)} kWh` },
+              { label: "Today's Usage", value: `${energy} kWh` },
               { label: 'Yesterday', value: '8.45 kWh' },
               { label: 'Weekly Average', value: '9.12 kWh' },
               { label: 'Monthly Average', value: '243.6 kWh' },

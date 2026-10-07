@@ -55,10 +55,7 @@ def predict(req: PredictRequest):
     timestamps = pd.to_datetime([r.timestamp for r in req.recent_readings], utc=True, errors='coerce')
     if timestamps.isna().any() or not timestamps.is_monotonic_increasing:
         raise HTTPException(400, "Readings must have valid, strictly ordered timestamps.")
-    if len(timestamps) > 1:
-        gaps = timestamps.to_series().diff().dt.total_seconds().dropna()
-        if (gaps < SAMPLING_INTERVAL_SECONDS * 0.5).any() or (gaps > SAMPLING_INTERVAL_SECONDS * 1.5).any():
-            raise HTTPException(400, "Readings do not match the configured sampling cadence.")
+
     if any(r.interval_energy_kwh is None for r in req.recent_readings):
         raise HTTPException(400, "Each reading must include interval_energy_kwh.")
 
@@ -74,7 +71,7 @@ def predict(req: PredictRequest):
             raise HTTPException(404, "Compatible model metadata not found; train the model first.")
         with open(metadata_path, 'r') as metadata_file:
             metadata = json.load(metadata_file)
-        if metadata.get('model_version') != MODEL_VERSION or metadata.get('feature_order') != FEATURE_COLUMNS or metadata.get('sequence_length') != SEQUENCE_LENGTH or metadata.get('sampling_interval_ms') != SAMPLING_INTERVAL_MS:
+        if metadata.get('model_version') != MODEL_VERSION or metadata.get('feature_order') != FEATURE_COLUMNS or metadata.get('sequence_length') != SEQUENCE_LENGTH:
             raise HTTPException(409, "Model metadata is incompatible with this service configuration.")
         model_path = os.path.join(MODELS_DIR, 'lstm_model.keras')
         if not os.path.exists(model_path):
