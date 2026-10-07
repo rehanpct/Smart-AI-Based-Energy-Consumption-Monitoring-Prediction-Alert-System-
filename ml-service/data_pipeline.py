@@ -80,11 +80,34 @@ def preprocess_data(df, is_training=True, scaler_path=None, target_scaler_path=N
 
     return scaled_features, scaled_target.flatten(), df
 
-def create_sequences(features, target, seq_length=SEQUENCE_LENGTH):
+def create_sequences(features, target, df, seq_length=SEQUENCE_LENGTH):
     X, y = [], []
-    for i in range(len(features) - seq_length):
-        X.append(features[i:(i + seq_length)])
-        y.append(target[i + seq_length])
+
+    # We create a boolean mask of whether the step to the NEXT observation is a valid small gap
+    # Or simpler: compute dt.total_seconds(). A gap > 3.0s (or < 0.1s) marks a boundary.
+    timestamps = df['timestamp']
+    gaps = timestamps.diff().dt.total_seconds().fillna(0)
+
+    # Identify segment IDs. A new segment starts when gap > 3.0 or gap < 0.1 (ignoring the first row's 0)
+    # Actually, a gap > 3.0s means the current row is the START of a new chunk.
+    is_boundary = (gaps > SAMPLING_INTERVAL_SECONDS * 3.0) | (gaps < SAMPLING_INTERVAL_SECONDS * 0.1)
+    is_boundary.iloc[0] = False # first row is always start of first chunk
+
+    segment_ids = is_boundary.cumsum()
+
+    # Generate sequences inside each segment
+    for segment_id in segment_ids.unique():
+        idx = np.where(segment_ids == segment_id)[0]
+        if len(idx) <= seq_length:
+            continue
+
+        seg_features = features[idx]
+        seg_target = target[idx]
+
+        for i in range(len(seg_features) - seq_length):
+            X.append(seg_features[i:(i + seq_length)])
+            y.append(seg_target[i + seq_length])
+
     return np.array(X), np.array(y)
 
 def prepare_datasets(csv_path):
@@ -93,10 +116,7 @@ def prepare_datasets(csv_path):
     df = df.sort_values(by=['appliance_id', 'timestamp'])
 
 
-    for appliance_id, group in df.groupby('appliance_id'):
-        gaps = group['timestamp'].diff().dt.total_seconds().dropna()
-        # if len(gaps) and ((gaps < SAMPLING_INTERVAL_SECONDS * 0.5) | (gaps > SAMPLING_INTERVAL_SECONDS * 1.5)).any():
-        #    raise ValueError(f'Appliance {appliance_id} contains telemetry outside the configured sampling cadence')
+
 
     train_dfs, val_dfs, test_dfs = [], [], []
     for _, group in df.groupby('appliance_id'):
@@ -115,12 +135,12 @@ def prepare_datasets(csv_path):
     if 'interval_energy_kwh' not in df.columns:
         raise ValueError('Dataset must contain canonical interval_energy_kwh targets')
     os.makedirs(MODELS_DIR, exist_ok=True)
-    X_train_raw, y_train_raw, _ = preprocess_data(train_df, is_training=True)
-    X_val_raw, y_val_raw, _ = preprocess_data(val_df, is_training=False)
-    X_test_raw, y_test_raw, _ = preprocess_data(test_df, is_training=False)
+    X_train_raw, y_train_raw, train_df_processed = preprocess_data(train_df, is_training=True)
+    X_val_raw, y_val_raw, val_df_processed = preprocess_data(val_df, is_training=False)
+    X_test_raw, y_test_raw, test_df_processed = preprocess_data(test_df, is_training=False)
 
-    X_train, y_train = create_sequences(X_train_raw, y_train_raw)
-    X_val, y_val = create_sequences(X_val_raw, y_val_raw)
-    X_test, y_test = create_sequences(X_test_raw, y_test_raw)
+    X_train, y_train = create_sequences(X_train_raw, y_train_raw, train_df_processed)
+    X_val, y_val = create_sequences(X_val_raw, y_val_raw, val_df_processed)
+    X_test, y_test = create_sequences(X_test_raw, y_test_raw, test_df_processed)
 
     return (X_train, y_train), (X_val, y_val), (X_test, y_test)

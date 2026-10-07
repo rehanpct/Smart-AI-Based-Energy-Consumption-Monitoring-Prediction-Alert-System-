@@ -69,13 +69,15 @@ export const DashboardView: React.FC = () => {
   const primaryAppId = appIds.length > 0 ? appIds[0] : null;
   const selectedTelemetry = primaryAppId ? latestReadings[primaryAppId] : null;
 
-  const rawPower = selectedTelemetry?.power ? selectedTelemetry.power / 1000 : 0; // kW
-  const powerW = selectedTelemetry?.power ? Math.round(selectedTelemetry.power) : 0; // W
-  const voltage = selectedTelemetry?.voltage ? Number(selectedTelemetry.voltage.toFixed(1)) : 0;
-  const current = selectedTelemetry?.current ? Number(selectedTelemetry.current.toFixed(2)) : 0;
-  const frequency = selectedTelemetry?.frequency ? Number(selectedTelemetry.frequency.toFixed(1)) : 0;
-  const powerFactor = selectedTelemetry?.power_factor ? Number(selectedTelemetry.power_factor.toFixed(2)) : 0;
-  const energy = selectedTelemetry?.energy ? Number(selectedTelemetry.energy.toFixed(2)) : 0;
+  const rawPower = selectedTelemetry?.power != null ? selectedTelemetry.power / 1000 : null; // kW
+  const powerW = selectedTelemetry?.power != null ? Math.round(selectedTelemetry.power) : null; // W
+  const voltage = selectedTelemetry?.voltage != null ? Number(selectedTelemetry.voltage.toFixed(1)) : null;
+  const current = selectedTelemetry?.current != null ? Number(selectedTelemetry.current.toFixed(2)) : null;
+  const frequency = selectedTelemetry?.frequency != null ? Number(selectedTelemetry.frequency.toFixed(1)) : null;
+  const powerFactor = selectedTelemetry?.power_factor != null ? Number(selectedTelemetry.power_factor.toFixed(2)) : null;
+  const energy = selectedTelemetry?.energy != null ? Number(selectedTelemetry.energy.toFixed(2)) : null;
+
+  const displayVal = (val: number | null, unit: string) => val !== null ? `${val} ${unit}`.trim() : 'N/A';
 
   // Environmental defaults since they aren't in telemetry (we just use 0 if not available)
   const temp = 0;
@@ -134,7 +136,7 @@ export const DashboardView: React.FC = () => {
             <Zap className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
           </div>
           <div className="mt-3">
-            <span className="text-xl font-bold tracking-tight text-slate-100">{powerW} W</span>
+            <span className="text-xl font-bold tracking-tight text-slate-100">{displayVal(powerW, 'W')}</span>
             <div className="flex items-center gap-1.5 mt-1">
               <span className="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-1 rounded font-bold">+4%</span>
               <span className="text-[9px] text-slate-500 font-medium">Normal</span>
@@ -146,7 +148,7 @@ export const DashboardView: React.FC = () => {
         <div className="glass-panel rounded-xl p-4 flex flex-col justify-between min-h-24">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Voltage</span>
           <div className="mt-3">
-            <span className="text-xl font-bold tracking-tight text-slate-100">{voltage} V</span>
+            <span className="text-xl font-bold tracking-tight text-slate-100">{displayVal(voltage, 'V')}</span>
             <span className="text-[9px] text-emerald-400 block mt-1 font-semibold">🟢 Stable</span>
           </div>
         </div>
@@ -155,7 +157,7 @@ export const DashboardView: React.FC = () => {
         <div className="glass-panel rounded-xl p-4 flex flex-col justify-between min-h-24">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Current</span>
           <div className="mt-3">
-            <span className="text-xl font-bold tracking-tight text-slate-100">{current} A</span>
+            <span className="text-xl font-bold tracking-tight text-slate-100">{displayVal(current, 'A')}</span>
             <span className="text-[9px] text-slate-500 block mt-1 font-medium">Normal</span>
           </div>
         </div>
@@ -164,7 +166,7 @@ export const DashboardView: React.FC = () => {
         <div className="glass-panel rounded-xl p-4 flex flex-col justify-between min-h-24">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Frequency</span>
           <div className="mt-3">
-            <span className="text-xl font-bold tracking-tight text-slate-100">{frequency.toFixed(1)} Hz</span>
+            <span className="text-xl font-bold tracking-tight text-slate-100">{displayVal(frequency, 'Hz')}</span>
             <span className="text-[9px] text-slate-500 block mt-1 font-mono">Sync Grid</span>
           </div>
         </div>
@@ -173,7 +175,7 @@ export const DashboardView: React.FC = () => {
         <div className="glass-panel rounded-xl p-4 flex flex-col justify-between min-h-24">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Power Factor</span>
           <div className="mt-3">
-            <span className="text-xl font-bold tracking-tight text-slate-100">{powerFactor}</span>
+            <span className="text-xl font-bold tracking-tight text-slate-100">{displayVal(powerFactor, '')}</span>
             <span className="text-[9px] text-emerald-400 block mt-1 font-semibold">Excellent</span>
           </div>
         </div>
@@ -182,7 +184,7 @@ export const DashboardView: React.FC = () => {
         <div className="glass-panel rounded-xl p-4 flex flex-col justify-between min-h-24">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Today's Energy</span>
           <div className="mt-3">
-            <span className="text-xl font-bold tracking-tight text-slate-100">{energy} kWh</span>
+            <span className="text-xl font-bold tracking-tight text-slate-100">{displayVal(energy, 'kWh')}</span>
             <span className="text-[9px] text-slate-500 block mt-1">Accumulated</span>
           </div>
         </div>
@@ -201,7 +203,7 @@ export const DashboardView: React.FC = () => {
           <div className="absolute top-0 right-0 w-16 h-16 bg-violet-500/5 rounded-full blur-xl"></div>
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Predicted Bill</span>
           <div className="mt-3">
-            <span className="text-xl font-bold tracking-tight text-slate-100">₹{energy > 0 ? (energy * 8.5).toFixed(0) : "0"}</span>
+            <span className="text-xl font-bold tracking-tight text-slate-100">₹{energy !== null ? (energy * 8.5).toFixed(0) : 'N/A'}</span>
             <span className="text-[9px] text-violet-400 block mt-1 font-semibold">LSTM Forecast</span>
           </div>
         </div>
@@ -414,7 +416,7 @@ export const DashboardView: React.FC = () => {
                 AI Operation Summary
               </div>
               <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                Today's electricity usage increased by <strong className="text-emerald-400">11%</strong>. Expected monthly bill totals <strong className="text-slate-100">₹{energy > 0 ? (energy * 8.5).toFixed(0) : "0"}</strong>, with peak consumption loads occurring between <strong className="text-amber-400">6 PM – 9 PM</strong>.
+                Today's electricity usage increased by <strong className="text-emerald-400">11%</strong>. Expected monthly bill totals <strong className="text-slate-100">₹{energy !== null ? (energy * 8.5).toFixed(0) : 'N/A'}</strong>, with peak consumption loads occurring between <strong className="text-amber-400">6 PM – 9 PM</strong>.
               </p>
               <div className="flex gap-2.5 items-start text-[11px] text-slate-400 bg-slate-900/30 p-3 rounded-lg border border-slate-900/80">
                 <Lightbulb className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
@@ -453,17 +455,17 @@ export const DashboardView: React.FC = () => {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
             {[
-              { label: "Today's Usage", value: `${energy} kWh` },
+              { label: "Today's Usage", value: `${displayVal(energy, 'kWh')}` },
               { label: 'Yesterday', value: '8.45 kWh' },
               { label: 'Weekly Average', value: '9.12 kWh' },
               { label: 'Monthly Average', value: '243.6 kWh' },
               { label: 'Peak Hour', value: '07:15 PM' },
               { label: 'Lowest Hour', value: '03:45 AM' },
               { label: 'Highest Voltage', value: '232.8 V' },
-              { label: 'Maximum Power', value: `${(rawPower * 1000 + 40).toFixed(0)} W` },
-              { label: 'Average Power', value: `${(rawPower * 1000 - 50).toFixed(0)} W` },
-              { label: 'Average Current', value: `${current} A` },
-              { label: 'Peak Demand Load', value: `${rawPower.toFixed(2)} kW` },
+              { label: 'Maximum Power', value: `${powerW !== null ? displayVal(powerW + 40, 'W') : 'N/A'}` },
+              { label: 'Average Power', value: `${powerW !== null ? displayVal(powerW - 50, 'W') : 'N/A'}` },
+              { label: 'Average Current', value: `${displayVal(current, 'A')}` },
+              { label: 'Peak Demand Load', value: `${rawPower !== null ? displayVal(Number(rawPower.toFixed(2)), 'kW') : 'N/A'}` },
               { label: 'Savings This Week', value: '₹26.50' }
             ].map((stat, idx) => (
               <div key={idx} className="border-b border-slate-900 pb-3">

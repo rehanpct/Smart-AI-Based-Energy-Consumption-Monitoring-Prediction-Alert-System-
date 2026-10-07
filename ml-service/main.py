@@ -56,6 +56,10 @@ def predict(req: PredictRequest):
     if timestamps.isna().any() or not timestamps.is_monotonic_increasing:
         raise HTTPException(400, "Readings must have valid, strictly ordered timestamps.")
 
+    if len(timestamps) > 1:
+        gaps = timestamps.to_series().diff().dt.total_seconds().dropna()
+        if (gaps < SAMPLING_INTERVAL_SECONDS * 0.1).any() or (gaps > SAMPLING_INTERVAL_SECONDS * 3.0).any():
+            raise HTTPException(400, "Readings do not match the configured sampling cadence.")
     if any(r.interval_energy_kwh is None for r in req.recent_readings):
         raise HTTPException(400, "Each reading must include interval_energy_kwh.")
 
